@@ -1,6 +1,82 @@
+import React, { useState } from "react";
 import Header from "../../components/Header";
 
+// 🌟 DATA DUMMY SEMENTARA BIAR UI KELIHATAN HIDUP
+const dummyDrivers = [
+    {
+        id: "DRV-102",
+        name: "Budi Santoso",
+        avatar: "https://ui-avatars.com/api/?name=Budi+Santoso&background=0D8ABC&color=fff",
+        status: "On Route",
+        score: 98,
+        ontime: "99%",
+        doSuccess: "96%",
+        truck: "B 9044 JXS",
+        distanceToday: 142,
+        doCompleted: 12,
+        doTotal: 15,
+        lastLocation: "📍 D'Prima Hotel Kuningan",
+        lastUpdate: "14:15 WIB"
+    },
+    {
+        id: "DRV-089",
+        name: "Joko Widodo",
+        avatar: "https://ui-avatars.com/api/?name=Joko+Widodo&background=10B981&color=fff",
+        status: "Resting",
+        score: 85,
+        ontime: "92%",
+        doSuccess: "100%",
+        truck: "B 9514 JXS",
+        distanceToday: 85,
+        doCompleted: 8,
+        doTotal: 8,
+        lastLocation: "📍 Rest Area KM 13",
+        lastUpdate: "12:30 WIB"
+    },
+    {
+        id: "DRV-115",
+        name: "Rahmat Hidayat",
+        avatar: "https://ui-avatars.com/api/?name=Rahmat+Hidayat&background=F59E0B&color=fff",
+        status: "Offline",
+        score: 94,
+        ontime: "97%",
+        doSuccess: "95%",
+        truck: "B 9517 JXS",
+        distanceToday: 0,
+        doCompleted: 0,
+        doTotal: 0,
+        lastLocation: "📍 Gudang Cikupa",
+        lastUpdate: "08:00 WIB"
+    }
+];
+
 export default function DriverPerformance() {
+    // State buat ngatur baris mana yang lagi di-expand
+    const [expandedDriverId, setExpandedDriverId] = useState<string | null>("DRV-102");
+
+    const toggleExpand = (id: string) => {
+        if (expandedDriverId === id) setExpandedDriverId(null);
+        else setExpandedDriverId(id);
+    };
+
+    const getStatusStyle = (status: string) => {
+        switch(status) {
+            case 'On Route': return 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
+            case 'Resting': return 'bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400 border-blue-200 dark:border-blue-800';
+            case 'Offline': return 'bg-slate-100 dark:bg-white/10 text-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-600';
+            default: return 'bg-slate-100 text-slate-800';
+        }
+    };
+
+    const getStatusIndicator = (status: string) => {
+        switch(status) {
+            case 'On Route': return 'bg-emerald-500';
+            case 'Resting': return 'bg-blue-500';
+            case 'Offline': return 'bg-slate-400';
+            default: return 'bg-slate-400';
+        }
+    };
+
     return (
         <>
             <Header title="Driver List" />
@@ -9,15 +85,15 @@ export default function DriverPerformance() {
                 <div className="mb-6 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Driver Performance Directory</h2>
-                        <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Monitor driver performance and real-time availability across zones.</p>
+                        <p className="text-slate-500 dark:text-slate-400">Monitor driver performance and real-time shift progress.</p>
                     </div>
 
                     <div className="flex items-center gap-4 w-full lg:max-w-xl justify-end">
                         <div className="relative w-full">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xl">search</span>
-                            <input className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white dark:bg-[#111111] transition-all outline-none" placeholder="Find Driver by name or ID..." type="text" />
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+                            <input className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white dark:focus:bg-[#111111] transition-all outline-none text-slate-800 dark:text-white" placeholder="Find Driver by name or ID..." type="text" />
                         </div>
-                        <button className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#111111] border border-slate-200 dark:border-[#333] rounded-lg text-sm font-medium hover:bg-slate-50 dark:bg-[#1A1A1A] whitespace-nowrap">
+                        <button className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#111111] border border-slate-200 dark:border-[#333] rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#1A1A1A] whitespace-nowrap">
                             <span className="material-symbols-outlined text-sm">filter_list</span>
                             Filter
                         </button>
@@ -29,197 +105,134 @@ export default function DriverPerformance() {
                         <table className="w-full text-left border-collapse min-w-[900px]">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-[#1A1A1A]/50 border-b border-slate-200 dark:border-[#333]">
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider">Driver Info</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider">Current Status</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider">Perf. Score</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider">Key Metrics</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider">Assigned Truck</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider text-right">Action</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Driver Info</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Current Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Perf. Score</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Key Metrics</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assigned Truck</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-[#333]">
-                                {/* Driver 1 */}
-                                <tr className="hover:bg-primary/5 transition-colors cursor-pointer bg-primary/5">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0">
-                                                <img className="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnkWNI1IC8JzuHI1rq_bPAkgYhu6ld_UTcq8RZH1VbJFEsCnj2Di5hg93P-88jB0YPr1u-t9JfZSoLFnbjhNS6K3YMrhEyqVZLWHP-eeYGwOuMZg1Mnl_TvcTnp-68GGLr6eeqUyvstbTiwFsGOasBKQ7PDBcihtT8BQsmGi2rvF2apQPBFm0SjjSe8jsgw3r5MWEYTgjbxj__wndfacnGOOWDQbd8XbXKaEHC2pCLSR4gleFfj0cSLuWLtXB40BIe5CnVmGBiadc" />
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-slate-900 dark:text-white">Budi Santoso</p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">DRV-102</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                                            On Route
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-yellow-500 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                                            <span className="font-bold">98</span>
-                                            <span className="text-xs text-slate-400 dark:text-slate-500">/100</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <span className="text-slate-400 dark:text-slate-500 w-16">On-time:</span>
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300">99%</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <span className="text-slate-400 dark:text-slate-500 w-16">Safety:</span>
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300">4.9/5</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-mono text-slate-600">B 9044 JXS</td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="p-1 hover:bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-400 dark:text-slate-500">
-                                            <span className="material-symbols-outlined">more_vert</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                {/* Expansion Content */}
-                                <tr className="bg-primary/5">
-                                    <td className="px-6 pb-6" colSpan={6}>
-                                        <div className="bg-white dark:bg-[#111111] rounded-lg border border-primary/20 p-4 flex flex-col lg:flex-row gap-6 lg:gap-8">
-                                            <div className="flex-1">
-                                                <div className="flex justify-between items-center mb-4">
-                                                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Weekly Delivery Success Trend</h4>
-                                                    <span className="text-xs text-primary font-medium">+4.2% from last week</span>
-                                                </div>
-                                                {/* Mini Chart Placeholder */}
-                                                <div className="h-24 w-full flex items-end gap-1 px-2">
-                                                    <div className="flex-1 bg-primary/20 rounded-t h-[60%]"></div>
-                                                    <div className="flex-1 bg-primary/30 rounded-t h-[75%]"></div>
-                                                    <div className="flex-1 bg-primary/40 rounded-t h-[65%]"></div>
-                                                    <div className="flex-1 bg-primary/50 rounded-t h-[90%]"></div>
-                                                    <div className="flex-1 bg-primary/60 rounded-t h-[80%]"></div>
-                                                    <div className="flex-1 bg-primary/80 rounded-t h-[95%]"></div>
-                                                    <div className="flex-1 bg-primary rounded-t h-[100%]"></div>
-                                                </div>
-                                                <div className="flex justify-between mt-2 text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold px-2">
-                                                    <span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span>
-                                                </div>
-                                            </div>
-                                            <div className="w-full lg:w-64 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-[#333] pt-4 lg:pt-0 lg:pl-8 flex flex-row lg:flex-col justify-between lg:justify-center gap-4">
-                                                <div className="mb-0 lg:mb-3">
-                                                    <p className="text-xs text-slate-400 dark:text-slate-500">Avg. Speed</p>
-                                                    <p className="text-xl font-bold">35 <span className="text-sm font-normal text-slate-400 dark:text-slate-500">km/h</span></p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-slate-400 dark:text-slate-500">Total Distance</p>
-                                                    <p className="text-xl font-bold">1,248 <span className="text-sm font-normal text-slate-400 dark:text-slate-500">km</span></p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {/* Row 2 */}
-                                <tr className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0">
-                                                <img className="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD-59hZLke4BORxHTDvloxN0f2ZJQsaVI0yppu80sCZwa79fYHtYLcTux2qG7KLTI2nk6ztd987w17dOFt3HzB1NEr4fvJV8loIDp9hEWb3ISm2zdWFzqIP8XQHDmN7UIYZmTQwJi6C62xDGzthDq99Cf4D1UqecmAQoFHIcOuxPD2De68OTT-k-PEzi0055fH2yBZk1oTKNsv1XDgyhvylu7eyUzCz84GrEMiQTCVSweJy8gHAZSn4m9KTGHudW96K1DJpZ3KBmV8" />
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-slate-900 dark:text-white">Joko Widodo</p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">DRV-089</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span>
-                                            Resting
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-slate-300 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                                            <span className="font-bold">85</span>
-                                            <span className="text-xs text-slate-400 dark:text-slate-500">/100</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <span className="text-slate-400 dark:text-slate-500 w-16">On-time:</span>
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300">92%</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <span className="text-slate-400 dark:text-slate-500 w-16">Safety:</span>
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300">4.2/5</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-mono text-slate-600">B 9514 JXS</td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="p-1 hover:bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-400 dark:text-slate-500">
-                                            <span className="material-symbols-outlined">more_vert</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                {/* Row 3 */}
-                                <tr className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0">
-                                                <img className="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBL2pOGkxg2biv3J3aZb1ix4Ier2dzhrlaMHy3VXZ__kicF7IPeeDeN2tortVgawMPVGYc2S8-puy5IQwbe2_8H8bt2cuIDnb9YS24Fenno_xKuEogxxS17KD_lOGoWwY5fqVwtsb-S61R_jkzPlL7K7Dog6sNocJipH3GFFV5uCxRC9oLGe0aHUJncwJcDPgFR-CyNTSwwooCaF5FKRn9dvswF2lbGJXTn2WpRhCJQROCoZIFa2GVdC9Fx6ZgSVYeJiINZQMFUFFw" />
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-slate-900 dark:text-white">Rahmat Hidayat</p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">DRV-115</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-white/10 text-slate-800 dark:text-slate-300">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5"></span>
-                                            Offline
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-orange-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                                            <span className="font-bold">94</span>
-                                            <span className="text-xs text-slate-400 dark:text-slate-500">/100</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <span className="text-slate-400 dark:text-slate-500 w-16">On-time:</span>
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300">97%</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-xs">
-                                                <span className="text-slate-400 dark:text-slate-500 w-16">Safety:</span>
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300">4.8/5</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-mono text-slate-600">B 9517 JXS</td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="p-1 hover:bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-400 dark:text-slate-500">
-                                            <span className="material-symbols-outlined">more_vert</span>
-                                        </button>
-                                    </td>
-                                </tr>
+                                {dummyDrivers.map((driver) => {
+                                    const isExpanded = expandedDriverId === driver.id;
+                                    
+                                    return (
+                                        <React.Fragment key={driver.id}>
+                                            {/* BARIS UTAMA DRIVER */}
+                                            <tr 
+                                                onClick={() => toggleExpand(driver.id)}
+                                                className={`transition-colors cursor-pointer ${isExpanded ? 'bg-primary/5 dark:bg-primary/10' : 'hover:bg-slate-50 dark:hover:bg-white/5'}`}
+                                            >
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 border border-slate-200 dark:border-[#444]">
+                                                            <img className="h-full w-full object-cover" src={driver.avatar} alt={driver.name} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-slate-900 dark:text-white">{driver.name}</p>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{driver.id}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusStyle(driver.status)}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getStatusIndicator(driver.status)}`}></span>
+                                                        {driver.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className={`material-symbols-outlined text-lg ${driver.score >= 90 ? 'text-yellow-500' : 'text-slate-300'}`} style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+                                                        <span className="font-bold text-slate-800 dark:text-white">{driver.score}</span>
+                                                        <span className="text-xs text-slate-400 dark:text-slate-500">/100</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <span className="text-slate-400 dark:text-slate-500 w-20">On-time:</span>
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{driver.ontime}</span>
+                                                        </div>
+                                                        {/* 🌟 METRIK KEDUA DIGANTI DO SUCCESS */}
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <span className="text-slate-400 dark:text-slate-500 w-20">DO Success:</span>
+                                                            <span className="font-bold text-emerald-600 dark:text-emerald-400">{driver.doSuccess}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                    {driver.truck}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-400 dark:text-slate-500 transition-colors">
+                                                        <span className="material-symbols-outlined text-lg">more_vert</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+
+                                            {/* 🌟 BARIS EXPANSION: KOTAK METRIK SHIFT HARIAN YANG REALISTIS */}
+                                            {isExpanded && (
+                                                <tr className="bg-slate-50/50 dark:bg-[#111111]">
+                                                    <td className="px-6 pb-6 pt-2 border-l-2 border-primary" colSpan={6}>
+                                                        <div className="flex items-center gap-2 mb-3">
+                                                            <span className="material-symbols-outlined text-sm text-primary">data_usage</span>
+                                                            <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Today's Shift Progress</h4>
+                                                        </div>
+                                                        
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                            {/* Panel 1: Distance */}
+                                                            <div className="bg-white dark:bg-[#1A1A1A] p-4 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
+                                                                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Total Distance</p>
+                                                                <p className="text-2xl font-black text-slate-800 dark:text-white flex items-end gap-1">
+                                                                    {driver.distanceToday} <span className="text-sm font-bold text-slate-400 mb-0.5">KM</span>
+                                                                </p>
+                                                            </div>
+
+                                                            {/* Panel 2: DO Progress */}
+                                                            <div className="bg-white dark:bg-[#1A1A1A] p-4 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
+                                                                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Delivery Progress</p>
+                                                                <p className="text-2xl font-black text-primary flex items-end gap-1">
+                                                                    {driver.doCompleted} <span className="text-sm font-bold text-slate-400 mb-0.5">/ {driver.doTotal} DO</span>
+                                                                </p>
+                                                                {/* Mini Progress Bar */}
+                                                                <div className="w-full h-1.5 bg-slate-100 dark:bg-[#333] rounded-full mt-3 overflow-hidden">
+                                                                    <div 
+                                                                        className="h-full bg-primary rounded-full transition-all duration-500" 
+                                                                        style={{ width: driver.doTotal > 0 ? `${(driver.doCompleted / driver.doTotal) * 100}%` : '0%' }}
+                                                                    ></div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Panel 3: Last Location/EPOD */}
+                                                            <div className="bg-white dark:bg-[#1A1A1A] p-4 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
+                                                                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Last E-POD Update</p>
+                                                                <p className="text-sm font-bold text-slate-800 dark:text-white mt-2 truncate">
+                                                                    {driver.lastLocation}
+                                                                </p>
+                                                                <div className="flex items-center gap-1 mt-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                                                    <span className="material-symbols-outlined text-[14px]">schedule</span>
+                                                                    {driver.lastUpdate}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
 
                     <div className="px-6 py-4 bg-slate-50 dark:bg-[#1A1A1A] border-t border-slate-200 dark:border-[#333] flex items-center justify-between">
-                        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">Showing 1 to 3 of 8 drivers</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">Showing 1 to 3 of 12 drivers</span>
                         <div className="flex gap-2">
-                            <button className="px-3 py-1 border border-slate-200 dark:border-[#333] rounded bg-white dark:bg-[#111111] text-xs font-bold hover:bg-slate-50 dark:bg-[#1A1A1A] disabled:opacity-50 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-[#333]">Previous</button>
+                            <button className="px-3 py-1 border border-slate-200 dark:border-[#444] rounded bg-white dark:bg-[#111111] text-xs font-bold hover:bg-slate-50 dark:hover:bg-[#222] disabled:opacity-50 text-slate-400 dark:text-slate-500">Previous</button>
                             <button className="px-3 py-1 bg-primary text-white rounded text-xs font-bold shadow-sm">1</button>
-                            <button className="px-3 py-1 border border-slate-200 dark:border-[#333] rounded bg-white dark:bg-[#111111] text-xs font-bold hover:bg-slate-50 dark:bg-[#1A1A1A] text-slate-700 dark:text-slate-300">2</button>
-                            <button className="px-3 py-1 border border-slate-200 dark:border-[#333] rounded bg-white dark:bg-[#111111] text-xs font-bold hover:bg-slate-50 dark:bg-[#1A1A1A] text-slate-700 dark:text-slate-300">Next</button>
+                            <button className="px-3 py-1 border border-slate-200 dark:border-[#444] rounded bg-white dark:bg-[#111111] text-xs font-bold hover:bg-slate-50 dark:hover:bg-[#222] text-slate-700 dark:text-slate-300">2</button>
+                            <button className="px-3 py-1 border border-slate-200 dark:border-[#444] rounded bg-white dark:bg-[#111111] text-xs font-bold hover:bg-slate-50 dark:hover:bg-[#222] text-slate-700 dark:text-slate-300">Next</button>
                         </div>
                     </div>
                 </div>

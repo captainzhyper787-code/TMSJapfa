@@ -1,13 +1,72 @@
+import React, { useEffect, useRef, useState } from "react";
 import Header from "../../components/Header";
+import "@tomtom-international/web-sdk-maps/dist/maps.css";
+import tt from "@tomtom-international/web-sdk-maps";
 
 export default function Dashboard() {
+    const mapElement = useRef<HTMLDivElement>(null);
+    const [map, setMap] = useState<tt.Map | null>(null);
+
+    const gudangLonLat: [number, number] = [106.479163, -6.207356];
+
+    const activeTrucks = [
+        { id: "B 9044 JXS", driver: "Budi Santoso", lon: 106.828697, lat: -6.228222, status: "Menuju D'Prima Hotel" },
+        { id: "B 9514 JXS", driver: "Joko Widodo", lon: 106.700000, lat: -6.250000, status: "Rest Area KM 13" },
+        { id: "B 9517 JXS", driver: "Rahmat Hidayat", lon: 106.800000, lat: -6.300000, status: "Terjebak Macet (Depok)" },
+    ];
+
+    useEffect(() => {
+        if (!mapElement.current) return;
+
+        const mapInstance = tt.map({
+            key: "xUy50YsjmbRexLalxX3ThDpmC1lOzElP", // PASTIKAN MAP DISPLAY API UDAH DICENTANG DI AKUN TOMTOM LU!
+            container: mapElement.current,
+            center: gudangLonLat,
+            zoom: 10,
+            style: "https://api.tomtom.com/style/1/style/21.1.0-*?map=2/basic_street-light&poi=2/poi_light"
+        });
+
+        const gudangPopup = new tt.Popup({ offset: 30 }).setText("📍 GUDANG CIKUPA (JAPFA)");
+        new tt.Marker({ color: "#e11d48" }) 
+            .setLngLat(gudangLonLat)
+            .setPopup(gudangPopup)
+            .addTo(mapInstance);
+
+        activeTrucks.forEach((truck) => {
+            const truckPopup = new tt.Popup({ offset: 30 }).setHTML(
+                `<div style="padding: 5px; font-family: sans-serif;">
+                    <b style="color: #0284c7; font-size: 14px;">🚚 ${truck.id}</b><br/>
+                    <span style="font-size: 12px; color: #666;">Supir: ${truck.driver}</span><br/>
+                    <span style="font-size: 11px; font-weight: bold; background: #e0f2fe; padding: 2px 5px; border-radius: 4px;">${truck.status}</span>
+                </div>`
+            );
+
+            const markerColor = truck.id === "B 9517 JXS" ? "#f97316" : "#0ea5e9"; 
+
+            new tt.Marker({ color: markerColor }) 
+                .setLngLat([truck.lon, truck.lat])
+                .setPopup(truckPopup)
+                .addTo(mapInstance);
+        });
+
+        mapInstance.addControl(new tt.NavigationControl(), "top-right");
+        setMap(mapInstance);
+
+        return () => mapInstance.remove();
+    }, []);
+
+    const flyToTruck = (lon: number, lat: number) => {
+        if (map) {
+            map.flyTo({ center: [lon, lat], zoom: 14, speed: 1.5 });
+        }
+    };
+
+
     return (
         <>
             <Header title="Daily Logistics KPI Dashboard" />
 
-            {/* Content Body */}
             <div className="p-4 md:p-8 flex flex-col gap-6 md:gap-8">
-                {/* KPI Cards Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                     <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-start mb-4">
@@ -69,9 +128,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Middle Section Charts */}
                 <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Large Bar Chart */}
                     <div className="w-full lg:w-[70%] bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-center mb-8">
                             <div>
@@ -129,7 +186,6 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Circular Gauge Chart */}
                     <div className="w-full lg:w-[30%] bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Fleet Utilization</h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">Daily average across 450 vehicles</p>
@@ -152,9 +208,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Bottom Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Rejection Reasons */}
                     <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Top Rejection Reasons</h3>
@@ -191,7 +245,6 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Real-time Alerts Feed */}
                     <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[320px] transition-colors">
                         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-[#222]/50 rounded-t-xl">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Real-time Alerts</h3>
@@ -232,8 +285,46 @@ export default function Dashboard() {
                             </div>
                         </div>
                     </div>
-
                 </div>
+
+                {/* ========================================================================= */}
+                {/* 🌟 FITUR BARU: LIVE TRACKING MAP FULL SCREEN HEIGHT */}
+                {/* ========================================================================= */}
+                <div className="mt-4 bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-[85vh] min-h-[600px]">
+                    <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-[#222]/50 shrink-0">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span className="relative flex h-3 w-3">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                </span>
+                                Live Fleet Tracking
+                            </h3>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Real-time GPS positioning from driver E-POD devices.</p>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                            {activeTrucks.map((truck, idx) => (
+                                <button 
+                                    key={idx} 
+                                    onClick={() => flyToTruck(truck.lon, truck.lat)}
+                                    className="px-3 py-1.5 bg-white dark:bg-[#111] border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all whitespace-nowrap"
+                                >
+                                    {truck.id}
+                                </button>
+                            ))}
+                            <button 
+                                onClick={() => flyToTruck(gudangLonLat[0], gudangLonLat[1])}
+                                className="px-3 py-1.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition-all whitespace-nowrap"
+                            >
+                                GUDANG JAPFA
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex-1 relative">
+                        <div ref={mapElement} className="absolute inset-0 w-full h-full" />
+                    </div>
+                </div>
+
             </div>
         </>
     );

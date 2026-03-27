@@ -1,53 +1,68 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Header from "../../components/Header";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } from 'react-leaflet'; // 🌟 TAMBAHAN TOOLTIP
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Fix default icon issues in Webpack/Vite
-const customIcon = new L.Icon({
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-});
+// 🌟 FUNGSI BARU: BIKIN MARKER ANGKA WARNA WARNI
+const createNumberedIcon = (number: number | string, color: string, isDepo: boolean = false) => {
+    const size = isDepo ? 32 : 24;
+    const fontSize = isDepo ? '14px' : '11px';
+    const markerHtmlStyles = `
+        background-color: ${color};
+        width: ${size}px;
+        height: ${size}px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        color: white;
+        font-weight: 900;
+        font-size: ${fontSize};
+        border: 2px solid white;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    `;
+    return new L.DivIcon({
+        className: "custom-leaflet-icon",
+        html: `<div style="${markerHtmlStyles}">${number}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2],
+    });
+};
 
-const ROUTE_STOPS: { name: string; position: [number, number]; time: string; qty: string }[] = [
-    { name: "RS Mitra Keluarga Cikarang", position: [-6.2736, 107.1422], time: "06:00 - 10:00", qty: "350 kg" },
-    { name: "Indogrosir Bintara", position: [-6.2361, 106.9602], time: "08:00 - 12:00", qty: "800 kg" },
-    { name: "Diamond Artha Gading", position: [-6.1466, 106.8926], time: "09:00 - 12:00", qty: "500 kg" },
-    { name: "RS Mitra Keluarga Kelapa Gading", position: [-6.1554, 106.8924], time: "06:00 - 09:00", qty: "250 kg" },
-    { name: "RS Mitra Keluarga Gading Serpong", position: [-6.2343, 106.6277], time: "07:00 - 11:00", qty: "300 kg" },
-    { name: "Ciputra Hospital", position: [-6.2519, 106.5293], time: "06:00 - 10:00", qty: "200 kg" },
-    { name: "Hero Taman Anggrek", position: [-6.1785, 106.7918], time: "09:00 - 14:00", qty: "650 kg" },
-    { name: "Sushi Hiro Taman Anggrek", position: [-6.1786, 106.7919], time: "10:00 - 12:00", qty: "150 kg" },
-    { name: "Caspia Kemang", position: [-6.2612, 106.8157], time: "08:00 - 13:00", qty: "100 kg" },
-    { name: "Hero Pondok Indah Mall", position: [-6.2655, 106.7833], time: "08:00 - 11:00", qty: "550 kg" },
-    { name: "RS Mitra Bina Husada Cibinong", position: [-6.4716, 106.8572], time: "06:00 - 09:00", qty: "250 kg" },
-    { name: "RS Mitra Keluarga Depok", position: [-6.3984, 106.8247], time: "06:00 - 10:00", qty: "300 kg" },
-    { name: "Ootoya Citywalk Sudirman", position: [-6.2085, 106.8174], time: "09:00 - 11:30", qty: "120 kg" },
-    { name: "Daily Food Hall - Millenium Mall Senen", position: [-6.1772, 106.8402], time: "07:00 - 11:00", qty: "400 kg" },
-    { name: "Bpk. Suhemi H.", position: [-6.1928, 106.8189], time: "08:00 - 15:00", qty: "50 kg" }
-];
+interface RouteProduct { nama_barang: string; qty: string; }
+interface RouteDetail { urutan: number; nama_toko: string; latitude: number; longitude: number; berat_kg: number; jam_tiba: string; items: RouteProduct[]; }
+interface RouteItem { route_id: string; tanggal: string; driver_name: string; kendaraan: string; jenis: string; destinasi_jumlah: number; total_berat: number; status: string; zone: string; detail_rute: RouteDetail[]; }
+interface Truck3DProps { plateNumber: string; driverName: string; truckType: string; zone: string; colorHex: string; percent: number; outerText: string; loadKg: string; colorClass: string; isSelected: boolean; onClick: () => void; }
 
+interface UploadResult { order_id?: string; kode_customer?: string; nama_toko: string; berat?: number; kordinat?: string; alasan?: string; items?: RouteProduct[]; jam_maks?: string; }
+interface DroppedNode { nama_toko: string; berat_kg: number; alasan: string; }
 
-const Truck3D = ({
-    plateNumber,
-    driverName,
-    truckType,
-    zone,
-    colorHex,
-    percent,
-    outerText,
-    loadKg,
-    colorClass,
-    isSelected
-}: any) => {
+const formatTimeWindow = (timeStr: string, weight: number) => {
+    if (!timeStr) return "-";
+    const cleanedTimeStr = timeStr.substring(0, 5);
+    const parts = cleanedTimeStr.split(':');
+    if (parts.length < 2) return cleanedTimeStr;
+    
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    
+    const serviceTime = 15 + (weight / 10);
+    const totalMinutes = h * 60 + m + Math.round(serviceTime);
+    
+    const endH = Math.floor(totalMinutes / 60) % 24;
+    const endM = totalMinutes % 60;
+    
+    const startStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    const endStr = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+    
+    return `${startStr} - ${endStr}`;
+};
+
+const Truck3D = ({ plateNumber, driverName, truckType, zone, colorHex, percent, outerText, loadKg, colorClass, isSelected, onClick }: Truck3DProps) => {
     return (
-        <div className={`bg-white dark:bg-[#1F1F1F] p-4 rounded-xl shadow-sm transition-all cursor-pointer ${isSelected ? 'border-2 border-primary ring-4 ring-primary/5 shadow-md' : 'border border-slate-200 dark:border-[#333] hover:border-primary/50'}`}>
+        <div onClick={onClick} className={`bg-white dark:bg-[#1F1F1F] p-4 rounded-xl shadow-sm transition-all cursor-pointer ${isSelected ? 'border-2 border-primary ring-4 ring-primary/5 shadow-md scale-[1.02]' : 'border border-slate-200 dark:border-[#333] hover:border-primary/50'}`}>
             <div className="flex justify-between items-start mb-3">
                 <div>
                     <div className="flex items-center gap-2">
@@ -60,94 +75,47 @@ const Truck3D = ({
             </div>
 
             <div className="mt-4 bg-[#111111] rounded-2xl p-6 border border-[#333] shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative overflow-hidden">
-                {/* Background accents */}
                 <div className={`absolute top-0 right-0 w-32 h-32 bg-${colorClass}-500/10 blur-[40px] rounded-full pointer-events-none`}></div>
-
                 <div className="flex justify-between items-baseline mb-3 relative z-10">
-                    <span className="text-sm font-black text-white uppercase tracking-wider">Load Factor 3D</span>
+                    <span className="text-sm font-black text-white uppercase tracking-wider">Load Factor</span>
                     <span className={`text-[10px] font-black text-${colorClass}-400 bg-${colorClass}-400/10 px-2 py-1 rounded border border-${colorClass}-400/20 uppercase shadow-[0_0_10px_rgba(0,0,0,0.2)]`}>{outerText}</span>
                 </div>
-
-                <div className="flex justify-between text-xs mb-1 relative z-10">
-                    <span className="text-slate-400 font-medium uppercase">Current Load</span>
-                    <span className="font-bold text-white">{loadKg}</span>
-                </div>
-
-                {/* 3D Isometric Truck View */}
+                <div className="flex justify-between text-xs mb-1 relative z-10"><span className="text-slate-400 font-medium uppercase">Current Load</span><span className="font-bold text-white">{loadKg}</span></div>
+                
                 <div className="relative w-full h-48 flex items-center justify-center mt-6 overflow-visible scale-110" style={{ perspective: '1200px' }}>
                     <div style={{ transform: 'rotateX(60deg) rotateZ(45deg)', transformStyle: 'preserve-3d' }} className="w-[240px] h-[72px] relative flex transition-all duration-700 hover:scale-105 cursor-pointer">
-
-                        {/* TRAILER */}
                         <div className="absolute right-0 top-0 w-[180px] h-[72px]" style={{ transformStyle: 'preserve-3d' }}>
-                            {/* Floor */}
                             <div className="absolute inset-0 bg-slate-900 border-[2px] border-slate-700" style={{ transform: 'translateZ(10px)' }}></div>
-
-                            {/* Top Face */}
                             <div className="absolute inset-0 border-[3px] border-slate-200" style={{ transform: 'translateZ(80px)', background: `linear-gradient(to right, ${colorHex} 0%, ${colorHex} ${percent}%, #f1f5f9 ${percent}%, #f1f5f9 100%)` }}>
                                 <div className="absolute inset-x-0 top-0 h-full opacity-30" style={{ width: `${percent}%`, backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.7) 10px, rgba(255,255,255,0.7) 20px)' }}></div>
                             </div>
-
-                            {/* Right Face (+Y) facing user mostly */}
                             <div className="absolute bottom-0 left-0 w-full h-[70px] origin-bottom border-[3px] border-r-0 border-slate-200 flex items-center shadow-[-5px_5px_20px_rgba(0,0,0,0.5)]" style={{ transform: 'translateZ(10px) rotateX(-90deg)', background: `linear-gradient(to right, ${colorHex} 0%, ${colorHex} ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)` }}>
                                 <div className="absolute inset-y-0 left-0 opacity-30" style={{ width: `${percent}%`, backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.7) 10px, rgba(255,255,255,0.7) 20px)' }}></div>
                                 <span className="text-white font-black text-4xl drop-shadow-md absolute" style={{ left: `calc(${percent}% / 2)`, transform: 'translate(-50%, 0)' }}>{percent}%</span>
                             </div>
-
-                            {/* Left Face (-Y) */}
                             <div className="absolute top-0 left-0 w-full h-[70px] origin-top bg-slate-300 border-[3px] border-l-0 border-slate-400" style={{ transform: 'translateZ(10px) rotateX(90deg)' }}></div>
-
-                            {/* Back Face (+X) */}
                             <div className="absolute top-0 right-0 w-[70px] h-[72px] origin-right bg-slate-200 border-[3px] border-slate-300 flex flex-col p-[2px] gap-[2px]" style={{ transform: 'translateZ(10px) rotateY(-90deg)' }}>
-                                <div className="flex-1 border-2 border-slate-400 bg-slate-100 flex items-center justify-center">
-                                    <div className="w-1/2 h-full border-b-[2px] border-slate-300"></div>
-                                </div>
-                                <div className="flex-1 border-2 border-slate-400 bg-slate-100 flex items-center justify-center">
-                                    <div className="w-1/2 h-full border-b-[2px] border-slate-300"></div>
-                                </div>
+                                <div className="flex-1 border-2 border-slate-400 bg-slate-100 flex items-center justify-center"><div className="w-1/2 h-full border-b-[2px] border-slate-300"></div></div>
+                                <div className="flex-1 border-2 border-slate-400 bg-slate-100 flex items-center justify-center"><div className="w-1/2 h-full border-b-[2px] border-slate-300"></div></div>
                             </div>
-
-                            {/* Wheels (Right side) */}
-                            <div className="absolute right-[20px] bottom-[-2px] w-[30px] h-[30px] origin-bottom bg-slate-900 rounded-full border-[6px] border-[#222] shadow-xl" style={{ transform: 'rotateX(-90deg) translateZ(-15px)' }}>
-                                <div className="absolute inset-[2px] bg-slate-400 rounded-full"></div>
-                            </div>
-                            <div className="absolute right-[70px] bottom-[-2px] w-[30px] h-[30px] origin-bottom bg-slate-900 rounded-full border-[6px] border-[#222] shadow-xl" style={{ transform: 'rotateX(-90deg) translateZ(-15px)' }}>
-                                <div className="absolute inset-[2px] bg-slate-400 rounded-full"></div>
-                            </div>
+                            <div className="absolute right-[20px] bottom-[-2px] w-[30px] h-[30px] origin-bottom bg-slate-900 rounded-full border-[6px] border-[#222] shadow-xl" style={{ transform: 'rotateX(-90deg) translateZ(-15px)' }}><div className="absolute inset-[2px] bg-slate-400 rounded-full"></div></div>
+                            <div className="absolute right-[70px] bottom-[-2px] w-[30px] h-[30px] origin-bottom bg-slate-900 rounded-full border-[6px] border-[#222] shadow-xl" style={{ transform: 'rotateX(-90deg) translateZ(-15px)' }}><div className="absolute inset-[2px] bg-slate-400 rounded-full"></div></div>
                         </div>
-
-                        {/* CABIN */}
                         <div className="absolute left-[10px] top-[4px] w-[40px] h-[64px]" style={{ transformStyle: 'preserve-3d' }}>
-                            {/* Floor */}
                             <div className="absolute inset-0 bg-slate-800" style={{ transform: 'translateZ(10px)' }}></div>
-
-                            {/* Top Face */}
                             <div className="absolute inset-0 bg-slate-100 border-[3px] border-slate-300 shadow-inner" style={{ transform: 'translateZ(60px)' }}></div>
-
-                            {/* Right Face (+Y) */}
                             <div className="absolute bottom-0 left-0 w-full h-[50px] origin-bottom bg-slate-100 border-[3px] border-slate-300 flex items-start" style={{ transform: 'translateZ(10px) rotateX(-90deg)' }}>
-                                {/* Door/Window */}
                                 <div className="w-full h-[30px] mt-2 ml-[2px] bg-slate-200 border-[2px] border-slate-400 rounded-sm overflow-hidden relative">
                                     <div className="w-full h-2/3 bg-slate-800/90 absolute top-0 border-b-2 border-slate-400"></div>
                                     <div className="w-2 h-[2px] bg-slate-500 absolute bottom-1 right-1"></div>
                                 </div>
                             </div>
-
-                            {/* Left Face (-Y) */}
                             <div className="absolute top-0 left-0 w-full h-[50px] origin-top bg-slate-300 border-[3px] border-slate-400" style={{ transform: 'translateZ(10px) rotateX(90deg)' }}></div>
-
-                            {/* Front Face (-X) Windshield */}
                             <div className="absolute top-0 left-0 w-[50px] h-[64px] origin-left bg-slate-200 border-[3px] border-slate-300" style={{ transform: 'translateZ(10px) rotateY(90deg)' }}>
-                                {/* Windshield */}
                                 <div className="absolute right-[2px] top-[4px] w-[26px] h-[50px] bg-slate-800/90 rounded-sm border-2 border-slate-700 shadow-inner"></div>
                             </div>
-
-                            {/* Front Wheel */}
-                            <div className="absolute left-[5px] bottom-[-2px] w-[30px] h-[30px] origin-bottom bg-slate-900 rounded-full border-[6px] border-[#222] shadow-xl" style={{ transform: 'rotateX(-90deg) translateZ(-15px)' }}>
-                                <div className="absolute inset-[2px] bg-slate-400 rounded-full"></div>
-                            </div>
+                            <div className="absolute left-[5px] bottom-[-2px] w-[30px] h-[30px] origin-bottom bg-slate-900 rounded-full border-[6px] border-[#222] shadow-xl" style={{ transform: 'rotateX(-90deg) translateZ(-15px)' }}><div className="absolute inset-[2px] bg-slate-400 rounded-full"></div></div>
                         </div>
-
-                        {/* Ground Box Shadow */}
                         <div className="absolute -bottom-8 -left-4 w-[110%] h-16 bg-black/40 blur-xl rounded-full" style={{ transform: 'rotateX(80deg) translateZ(-20px)' }}></div>
                     </div>
                 </div>
@@ -156,419 +124,775 @@ const Truck3D = ({
     );
 };
 
+const getTruckColors = (loadPercent: number) => {
+    if (loadPercent > 80) return { hex: '#10b981', class: 'emerald', text: `Optimal • ${loadPercent}%` };
+    if (loadPercent > 50) return { hex: '#f59e0b', class: 'amber', text: `Moderate • ${loadPercent}%` };
+    return { hex: '#ef4444', class: 'red', text: `Low • ${loadPercent}%` };
+};
+
+interface MapComponentProps {
+    mapPositions: [number, number][];
+    selectedRoute: RouteItem | undefined;
+}
+
+const MapComponent = ({ mapPositions, selectedRoute }: MapComponentProps) => {
+    const mapRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (mapRef.current) {
+            setTimeout(() => {
+                mapRef.current?.invalidateSize();
+            }, 300);
+        }
+    }, []);
+
+    const routeColor = "#0ea5e9"; // Warna garis untuk tampilan single rute
+
+    return (
+        <MapContainer 
+            center={mapPositions.length > 0 ? mapPositions[0] : [-6.2000, 106.8166]} 
+            zoom={10} 
+            scrollWheelZoom={true} 
+            style={{ height: '100%', width: '100%', zIndex: 0 }}
+            ref={mapRef}
+        >
+            <TileLayer 
+                attribution='&copy; <a href="https://www.tomtom.com/">TomTom</a>' 
+                url="https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=xUy50YsjmbRexLalxX3ThDpmC1lOzElP" 
+            />
+            {/* 🌟 MARKER DEPO */}
+            <Marker position={[-6.207356, 106.479163]} icon={createNumberedIcon('0', '#1e293b', true)}>
+                <Tooltip direction="top" offset={[0, -16]} opacity={1}><b>Gudang JAPFA Cikupa</b></Tooltip>
+                <Popup><div className="font-bold">Gudang JAPFA Cikupa</div><div className="text-xs text-primary font-bold">START DEPO</div></Popup>
+            </Marker>
+            
+            {/* 🌟 MARKER TOKO */}
+            {selectedRoute?.detail_rute.map((stop, idx) => (
+                <Marker key={idx} position={[stop.latitude, stop.longitude]} icon={createNumberedIcon(idx + 1, routeColor)}>
+                    <Tooltip direction="top" offset={[0, -12]} opacity={1}><b>{stop.nama_toko}</b></Tooltip>
+                    <Popup>
+                        <div className="font-bold">{stop.nama_toko}</div>
+                        <div className="text-xs text-slate-500">Est: {stop.jam_tiba.substring(0, 5)}</div>
+                        <div className="text-[10px] mt-1 text-primary">Urutan #{idx + 1} • {stop.berat_kg} KG</div>
+                    </Popup>
+                </Marker>
+            ))}
+            <Polyline positions={mapPositions} pathOptions={{ color: routeColor, weight: 4, dashArray: '5, 10' }} />
+        </MapContainer>
+    );
+};
+
 export default function RoutePlanning() {
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
-    const [uploadMessage, setUploadMessage] = useState('');
-
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [showMapView, setShowMapView] = useState(false);
+    const [isFocusMode, setIsFocusMode] = useState(false);
     const [routeMessage, setRouteMessage] = useState('');
-
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [routesData, setRoutesData] = useState<RouteItem[]>([]);
+    const [droppedNodes, setDroppedNodes] = useState<DroppedNode[]>([]);
+    
+    const [previewData, setPreviewData] = useState<any>(null);
+    // 🌟 WARNA KHAS UNTUK TRUK BERBEDA
+    const truckColors = ['#e11d48', '#0284c7', '#16a34a', '#d97706', '#9333ea', '#0d9488', '#0891b2'];
 
-    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+    const [activeModal, setActiveModal] = useState<'cost' | 'distance' | 'fleet' | 'stops' | null>(null);
+    const [expandedStopIdx, setExpandedStopIdx] = useState<number | null>(null);
+    const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+    const [showVerificationModal, setShowVerificationModal] = useState(false);
+    const [uploadReport, setUploadReport] = useState<{success: UploadResult[], failed: UploadResult[]} | null>(null);
+    const [failedCoords, setFailedCoords] = useState<Record<number, { lat: string, lon: string }>>({});
+    const [expandedRows, setExpandedRows] = useState<number[]>([]);
+    
+    const toggleRow = (idx: number) => {
+        if (expandedRows.includes(idx)) {
+            setExpandedRows(expandedRows.filter(i => i !== idx)); 
+        } else {
+            setExpandedRows([...expandedRows, idx]); 
+        }
+    };
+
+    const fetchRoutes = async (date: string) => {
+        try {
+            const response = await fetch(`http://localhost:8000/api/routes?date=${date}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.routes) {
+                    setRoutesData(data.routes);
+                    setDroppedNodes(data.dropped_nodes || []);
+                    if (data.routes.length > 0) setSelectedRouteId(data.routes[0].route_id);
+                    else setSelectedRouteId(null);
+                } else {
+                    setRoutesData(data);
+                    if (data.length > 0) setSelectedRouteId(data[0].route_id);
+                    else setSelectedRouteId(null);
+                }
+            }
+        } catch (error) { console.error("Gagal:", error); }
+    };
+
+    useEffect(() => { fetchRoutes(selectedDate); }, [selectedDate]);
+
+    const handleUploadClick = () => fileInputRef.current?.click();
+    
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // Reset file input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
+        const formData = new FormData();
+        formData.append("file", file);
+        setIsUploading(true);
+
+        try {
+            const response = await fetch('http://localhost:8000/api/orders/upload', { method: 'POST', body: formData });
+            if (response.ok) {
+                const data = await response.json();
+                setUploadReport({ success: data.success_list || [], failed: data.failed_list || [] });
+                setFailedCoords({}); 
+                setShowVerificationModal(true); 
+            } else {
+                alert(`Gagal upload.`);
+            }
+        } catch (error) {
+            alert(`Server Error! Pastikan Uvicorn menyala.`);
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            setIsUploading(false); 
+        }
+    };
+
+    const handleTimeChange = async (orderId: string | undefined, newTime: string) => {
+        if (!orderId) return; 
+        try {
+            const response = await fetch(`http://localhost:8000/api/orders/${orderId}/time`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ jam_maksimal: newTime })
+            });
+            if (!response.ok) console.error("Gagal simpan waktu ke database!");
+        } catch (error) {
+            console.error("Error API Time Update:", error);
+        }
+    };
+
+    const handleSaveCoordinate = async (idx: any, item: any) => {
+        const coords = failedCoords[idx];
+        if (!coords || !coords.lat || !coords.lon) {
+            return alert("Isi Latitude dan Longitude dulu Bos!");
         }
 
-        setIsUploading(true);
-        setUploadStatus('idle');
+        try {
+            const payload = {
+                latitude: parseFloat(coords.lat),
+                longitude: parseFloat(coords.lon),
+                kode_customer: item.kode_customer || item.nama_toko, 
+                nama_customer: item.nama_toko
+            };
 
-        // Simulate upload and generating route process
-        setTimeout(() => {
-            setIsUploading(false);
-            // Simulate 90% success rate
-            if (Math.random() > 0.1) {
-                setUploadStatus('success');
-                setUploadMessage(`Successfully uploaded ${file.name}. Generating new routes...`);
+            const response = await fetch(`http://localhost:8000/api/orders/DRAFT-${idx}/coordinate`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const currentSuccess = uploadReport ? [...uploadReport.success] : [];
+                const recoveredItem = {
+                    ...item,
+                    kordinat: `${coords.lat}, ${coords.lon}` 
+                };
+                currentSuccess.push(recoveredItem);
+
+                const currentFailed = uploadReport ? [...uploadReport.failed] : [];
+                const newFailed = currentFailed.filter((_, currentIdx) => currentIdx !== idx);
+
+                setUploadReport({
+                    success: currentSuccess,
+                    failed: newFailed
+                });
+
+                const newFailedCoords = { ...failedCoords };
+                delete newFailedCoords[idx];
+                setFailedCoords(newFailedCoords);
+
             } else {
-                setUploadStatus('error');
-                setUploadMessage(`Failed to upload ${file.name}. Invalid format.`);
+                alert("Gagal menyimpan koordinat!");
             }
-
-            // Auto-hide alert after 3 seconds
-            setTimeout(() => setUploadStatus('idle'), 3000);
-        }, 2000);
+        } catch (error) {
+            console.error("Gagal save:", error);
+        }
     };
 
-    const handleOptimizeRoute = () => {
-        setIsOptimizing(true);
-        setRouteMessage('');
-
-        // Simulate optimization algorithm
-        setTimeout(() => {
-            setIsOptimizing(false);
-            setRouteMessage('Route successfully optimized for fuel efficiency!');
-
-            // Auto-hide success message
-            setTimeout(() => setRouteMessage(''), 3000);
-        }, 1500);
+    const handleOptimizeRoute = async () => {
+        setShowVerificationModal(false); 
+        setIsOptimizing(true); 
+        try {
+            const response = await fetch('http://localhost:8000/optimize-routes?preview=true', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setPreviewData(data);
+            } else { 
+                const errData = await response.json();
+                alert(`Gagal optimasi VRP: ${errData.detail ? JSON.stringify(errData.detail) : 'Server Error'}`); 
+            }
+        } catch (error) { 
+            alert('Gagal konek ke server Backend!'); 
+        } finally { 
+            setIsOptimizing(false); 
+        }
     };
+
+    const handleConfirmSaveRoute = async () => {
+        setPreviewData(null);
+        setIsOptimizing(true); 
+        try {
+            const response = await fetch('http://localhost:8000/optimize-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setRouteMessage(String(data.info_text || 'Rute berhasil dioptimasi & disimpan ke Database!'));
+                const todayStr = new Date().toISOString().split('T')[0];
+                setSelectedDate(todayStr); 
+                await fetchRoutes(todayStr); 
+            } else { 
+                alert(`Gagal menyimpan VRP.`); 
+            }
+        } catch (error) { 
+            alert('Gagal konek ke server Backend!'); 
+        } finally { 
+            setIsOptimizing(false); 
+            setTimeout(() => setRouteMessage(''), 15000); 
+        }
+    };
+
+    const totalFleet = routesData.length;
+    const totalOrders = routesData.reduce((sum, route) => sum + (route.destinasi_jumlah || 0), 0);
+    
+    const totalCost = totalFleet > 0 ? (totalFleet * 1250000).toLocaleString('id-ID') : "0";
+    const totalDistance = totalFleet > 0 ? (totalFleet * 45.5).toFixed(1) : "0";
+    const selectedRoute = routesData.find(r => r.route_id === selectedRouteId);
+    
+    const mapPositions: [number, number][] = [];
+    if (selectedRoute) {
+        mapPositions.push([-6.207356, 106.479163]); 
+        selectedRoute.detail_rute.forEach(stop => {
+            if (stop.latitude && stop.longitude) mapPositions.push([stop.latitude, stop.longitude]);
+        });
+    }
 
     return (
         <>
             <Header title="Route Planning Dashboard" />
 
-            {/* Loading Overlay */}
-            {isUploading && (
-                <div className="absolute inset-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Uploading & Generating Route...</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-300 mt-1">Please wait while we process the delivery order.</p>
+            {previewData && (
+                <div className="fixed inset-0 z-[999999] bg-slate-900/90 backdrop-blur-sm flex flex-col p-4 md:p-8">
+                    <div className="bg-white dark:bg-[#111] flex-1 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
+                        <div className="p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-[#1A1A1A]">
+                            <div>
+                                <h2 className="text-xl md:text-2xl font-black uppercase text-slate-800 dark:text-white flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary">route</span> Peta Preview Rute AI
+                                </h2>
+                                <p className="text-slate-500 text-sm mt-1">Review jalur pengiriman setiap truk sebelum disimpan permanen.</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => { setPreviewData(null); setShowVerificationModal(true); }} className="px-4 py-2 border-2 border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm">edit</span> Batal & Edit Waktu
+                                </button>
+                                <button onClick={handleConfirmSaveRoute} className="px-6 py-2 bg-primary text-white font-black rounded-xl hover:brightness-110 flex items-center gap-2 shadow-lg shadow-primary/30 transition-all">
+                                    <span className="material-symbols-outlined">save</span> SIMPAN RUTE PERMANEN
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 relative bg-slate-100 dark:bg-slate-900">
+                            <MapContainer 
+                                center={[-6.207356, 106.479163]} 
+                                zoom={10} 
+                                style={{ height: '100%', width: '100%' }}
+                                whenReady={() => {
+                                    setTimeout(() => {
+                                        window.dispatchEvent(new Event('resize'));
+                                    }, 400);
+                                }}
+                            >
+                                <TileLayer attribution='&copy; <a href="https://www.tomtom.com/">TomTom</a>' url="https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=xUy50YsjmbRexLalxX3ThDpmC1lOzElP" />
+                                
+                                {/* 🌟 DEPO ICON GLOBAL */}
+                                <Marker position={[-6.207356, 106.479163]} icon={createNumberedIcon('0', '#1e293b', true)} zIndexOffset={1000}>
+                                    <Tooltip direction="top" offset={[0, -16]} opacity={1}><b>Gudang JAPFA Cikupa</b></Tooltip>
+                                </Marker>
+
+                                {previewData.jadwal_truk_internal.map((truk: any, i: number) => {
+                                    const color = truckColors[i % truckColors.length];
+                                    const positions = truk.detail_perjalanan.map((stop: any) => [stop.lat, stop.lon]);
+                                    
+                                    return (
+                                        <React.Fragment key={i}>
+                                            <Polyline positions={positions} pathOptions={{ color: color, weight: 4, opacity: 0.8, dashArray: '8, 8' }} />
+                                            {truk.detail_perjalanan.map((stop: any, j: number) => {
+                                                if (stop.urutan === 0) return null; // Skip drawing depo again for each truck
+                                                return (
+                                                <Marker key={`${i}-${j}`} position={[stop.lat, stop.lon]} icon={createNumberedIcon(stop.urutan, color)}>
+                                                    <Tooltip direction="top" offset={[0, -12]} opacity={1}><b>{stop.nama_toko || stop.lokasi}</b></Tooltip>
+                                                    <Popup>
+                                                        <b style={{color: color}} className="text-sm font-black uppercase tracking-wider mb-1 block">🚚 {truk.armada}</b>
+                                                        <span className="font-bold text-slate-800">{stop.nama_toko || stop.lokasi}</span><br/>
+                                                        <span className="text-xs text-slate-500">Jam Tiba: {stop.jam_tiba?.substring(0,5) || stop.jam?.substring(0,5)}</span>
+                                                    </Popup>
+                                                </Marker>
+                                            )})}
+                                        </React.Fragment>
+                                    )
+                                })}
+                            </MapContainer>
+
+                            {/* 🌟 LEGENDA PETA */}
+                            <div className="absolute bottom-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[250px] overflow-y-auto">
+                                <h4 className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-wider">Keterangan Truk</h4>
+                                <div className="space-y-2.5">
+                                    {previewData.jadwal_truk_internal.map((truk: any, i: number) => (
+                                        <div key={i} className="flex items-center gap-3">
+                                            <div className="w-4 h-4 rounded-full shadow-inner border border-white" style={{ backgroundColor: truckColors[i % truckColors.length] }}></div>
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block leading-none">{truk.armada}</span>
+                                                <span className="text-[9px] font-medium text-slate-500">{truk.total_muatan_kg} KG</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeModal && (
+                <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setActiveModal(null)}>
+                    <div className="bg-white dark:bg-[#1F1F1F] rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-[#333] overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-5 border-b border-slate-200 dark:border-[#333] flex justify-between items-center bg-slate-50 dark:bg-[#1A1A1A]">
+                            <h3 className="font-bold text-lg dark:text-white flex items-center gap-2">
+                                {activeModal === 'cost' && <><span className="material-symbols-outlined text-primary">payments</span> Rincian Cost Estimation</>}
+                                {activeModal === 'distance' && <><span className="material-symbols-outlined text-primary">route</span> Rincian Total Distance</>}
+                                {activeModal === 'fleet' && <><span className="material-symbols-outlined text-primary">local_shipping</span> Rincian Active Fleet</>}
+                                {activeModal === 'stops' && <><span className="material-symbols-outlined text-primary">inventory_2</span> Rincian Total Stops</>}
+                            </h3>
+                            <button onClick={() => setActiveModal(null)} className="p-1 hover:bg-slate-200 dark:hover:bg-[#333] rounded-lg text-slate-500">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-5 overflow-y-auto flex-1">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-200 dark:border-[#333] text-slate-500 text-sm">
+                                        <th className="pb-3 font-semibold">Truk (Nopol)</th>
+                                        <th className="pb-3 font-semibold">Driver</th>
+                                        {activeModal === 'cost' && <th className="pb-3 font-semibold text-right">Estimasi Biaya</th>}
+                                        {activeModal === 'distance' && <th className="pb-3 font-semibold text-right">Jarak Tempuh</th>}
+                                        {activeModal === 'fleet' && <th className="pb-3 font-semibold text-right">Tipe Armada</th>}
+                                        {activeModal === 'stops' && <th className="pb-3 font-semibold text-right">Jumlah Toko</th>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {routesData.map((route, i) => (
+                                        <tr key={i} className="border-b border-slate-100 dark:border-[#222] last:border-0 hover:bg-slate-50 dark:hover:bg-[#2A2A2A]">
+                                            <td className="py-3 font-bold dark:text-white">{route.kendaraan}</td>
+                                            <td className="py-3 text-slate-600 dark:text-slate-300">{route.driver_name}</td>
+                                            {activeModal === 'cost' && <td className="py-3 text-right font-mono text-emerald-600">Rp 1.250.000</td>}
+                                            {activeModal === 'distance' && <td className="py-3 text-right font-mono text-blue-500">45.5 KM</td>}
+                                            {activeModal === 'fleet' && <td className="py-3 text-right text-slate-500">{route.jenis}</td>}
+                                            {activeModal === 'stops' && <td className="py-3 text-right font-bold text-primary">{route.destinasi_jumlah} Toko</td>}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {(isUploading || isOptimizing) && (
+                <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-6"></div>
+                    <h3 className="text-xl font-bold text-white tracking-widest uppercase">
+                        {isUploading ? 'MENGUNGGAH SAP KE DATABASE...' : 'MESIN VRP SEDANG BEKERJA...'}
+                    </h3>
+                </div>
+            )}
+
+            {showVerificationModal && uploadReport && (
+                <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#1F1F1F] rounded-2xl shadow-2xl w-full max-w-[95vw] h-[90vh] flex flex-col border border-slate-200 dark:border-[#333] overflow-hidden animate-in zoom-in-95">
+                        <div className="p-6 border-b border-slate-200 dark:border-[#333] flex justify-between items-center bg-slate-50 dark:bg-[#111]">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase">Validasi Pre-Routing VRP</h2>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Harap cek daftar pelanggan, muatan, dan <b className="text-primary">Batas Waktu</b> sebelum memproses rute Bos Ihsan.</p>
+                            </div>
+                            <button onClick={() => setShowVerificationModal(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-[#333] rounded-xl text-slate-500">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-6 flex-1 overflow-y-auto space-y-8 bg-slate-50 dark:bg-[#1A1A1A]">
+                            <div className="bg-white dark:bg-[#1F1F1F] border border-emerald-200 dark:border-emerald-900/50 rounded-xl overflow-hidden shadow-sm">
+                                <div className="bg-emerald-50 dark:bg-emerald-900/20 px-5 py-3 border-b border-emerald-200 dark:border-emerald-900/50 flex justify-between items-center">
+                                    <h3 className="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                                        <span className="material-symbols-outlined">check_circle</span>
+                                        Toko Siap Routing ({uploadReport.success.length})
+                                    </h3>
+                                </div>
+                                <div className="max-h-[500px] overflow-y-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="sticky top-0 bg-slate-50 dark:bg-[#111] shadow-sm z-10 border-b border-slate-200 dark:border-[#333]">
+                                            <tr className="text-slate-500 dark:text-slate-400">
+                                                <th className="px-5 py-3 font-semibold">No. & Nama Toko</th>
+                                                <th className="px-5 py-3 font-semibold w-32">Total Berat</th>
+                                                <th className="px-5 py-3 font-semibold w-48">Kordinat GPS</th>
+                                                <th className="px-5 py-3 font-semibold w-40 text-center text-primary">Batas Jam (Bisa Edit)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 dark:divide-[#333]">
+                                            {uploadReport.success.map((item, idx) => (
+                                                <React.Fragment key={idx}>
+                                                    <tr className="bg-white dark:bg-[#1F1F1F] hover:bg-slate-50 dark:hover:bg-[#2A2A2A] transition-colors">
+                                                        <td className="px-5 py-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-black text-xs border border-emerald-200 dark:border-emerald-800 shrink-0">
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-800 dark:text-white">{item.nama_toko}</p>
+                                                                    {item.items && item.items.length > 0 && (
+                                                                        <button 
+                                                                            onClick={() => toggleRow(idx)}
+                                                                            className="text-[10px] font-bold text-primary flex items-center gap-1 mt-1 hover:underline outline-none"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[12px]">
+                                                                                {expandedRows.includes(idx) ? 'expand_less' : 'expand_more'}
+                                                                            </span>
+                                                                            {expandedRows.includes(idx) ? 'Sembunyikan Rincian' : `Lihat ${item.items.length} Rincian Muatan`}
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3 text-slate-600 dark:text-slate-300 font-bold">{item.berat} KG</td>
+                                                        <td className="px-5 py-3 font-mono text-xs text-slate-500">{item.kordinat}</td>
+                                                        
+                                                        <td className="px-5 py-3 text-center">
+                                                            <div className="flex justify-center items-center gap-2">
+                                                                <input 
+                                                                    type="time" 
+                                                                    defaultValue={item.jam_maks || "20:00"}
+                                                                    onChange={(e) => handleTimeChange(item.order_id, e.target.value)}
+                                                                    className="border border-slate-300 dark:border-slate-600 dark:bg-[#111] dark:text-white rounded-lg px-2 py-1.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm w-full transition-all"
+                                                                    title="Ganti jam kalau ada intervensi manual"
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    
+                                                    {expandedRows.includes(idx) && item.items && item.items.length > 0 && (
+                                                        <tr className="bg-slate-50/80 dark:bg-[#1A1A1A] animate-in fade-in slide-in-from-top-2 duration-200">
+                                                            <td colSpan={4} className="px-5 pb-4 pt-3 border-t border-dashed border-slate-200 dark:border-[#333]">
+                                                                <div className="pl-[44px]"> 
+                                                                    <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
+                                                                        <span className="material-symbols-outlined text-[12px]">receipt_long</span> Rincian Item ({item.berat} KG)
+                                                                    </h5>
+                                                                    <ul className="grid grid-cols-2 gap-2">
+                                                                        {item.items.map((product, prodIdx) => (
+                                                                            <li key={prodIdx} className="flex justify-between items-center text-xs bg-white dark:bg-[#222] p-2 rounded-md border border-slate-200 dark:border-[#444] shadow-sm">
+                                                                                <span className="text-slate-600 dark:text-slate-300 font-medium truncate pr-2">{String(product.nama_barang)}</span>
+                                                                                <span className="font-bold text-slate-800 dark:text-white bg-slate-100 dark:bg-[#111] px-2 py-0.5 rounded shrink-0">{String(product.qty)}</span>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {uploadReport.failed.length > 0 && (
+                                <div className="bg-white dark:bg-[#1F1F1F] border border-red-200 dark:border-red-900/50 rounded-xl overflow-hidden shadow-sm mt-4">
+                                    <div className="bg-red-50 dark:bg-red-900/20 px-5 py-3 border-b border-red-200 dark:border-red-900/50 flex justify-between items-center">
+                                        <h3 className="font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                                            <span className="material-symbols-outlined">warning</span>
+                                            Error / Tanpa Koordinat ({uploadReport.failed.length})
+                                        </h3>
+                                    </div>
+                                    <div className="max-h-[300px] overflow-y-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-slate-50 dark:bg-[#111] sticky top-0 border-b border-slate-200 dark:border-[#333]">
+                                                <tr className="text-slate-500 dark:text-slate-400">
+                                                    <th className="px-5 py-3 font-bold">Nama Toko</th>
+                                                    <th className="px-5 py-3 font-bold">Berat</th>
+                                                    <th className="px-5 py-3 font-bold">Alasan Drop</th>
+                                                    <th className="px-5 py-3 font-bold text-center w-72">Aksi (Input Koordinat)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-[#222]">
+                                                {uploadReport.failed.map((item, idx) => (
+                                                    <tr key={idx} className="hover:bg-red-50/30 dark:hover:bg-red-900/10">
+                                                        <td className="px-5 py-3 font-bold text-slate-800 dark:text-slate-200">{item.nama_toko}</td>
+                                                        <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-[#1A1A1A] w-32">{item.berat} KG</td>
+                                                        <td className="px-5 py-3 text-red-600 dark:text-red-400 font-medium italic">{item.alasan}</td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="flex gap-2">
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="Lat (e.g. -6.2)" 
+                                                                    className="w-24 text-xs border border-slate-300 dark:border-slate-600 dark:bg-[#111] dark:text-white rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                                                                    onChange={(e) => setFailedCoords({
+                                                                        ...failedCoords, 
+                                                                        [idx]: { ...failedCoords[idx], lat: e.target.value }
+                                                                    })}
+                                                                />
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="Lon (e.g. 106.8)" 
+                                                                    className="w-24 text-xs border border-slate-300 dark:border-slate-600 dark:bg-[#111] dark:text-white rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                                                                    onChange={(e) => setFailedCoords({
+                                                                        ...failedCoords, 
+                                                                        [idx]: { ...failedCoords[idx], lon: e.target.value }
+                                                                    })}
+                                                                />
+                                                                <button 
+                                                                    onClick={() => handleSaveCoordinate(idx, item)}
+                                                                    className="bg-slate-800 dark:bg-primary text-white text-[10px] font-bold px-3 py-1.5 rounded hover:bg-primary transition-colors"
+                                                                >
+                                                                    SAVE
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 border-t border-slate-200 dark:border-[#333] flex justify-end gap-4 bg-white dark:bg-[#111]">
+                            <button onClick={() => setShowVerificationModal(false)} className="px-6 py-3 font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] rounded-xl transition-all">
+                                Batal & Edit Excel
+                            </button>
+                            <button onClick={handleOptimizeRoute} className="px-8 py-3 font-black text-white bg-primary hover:brightness-110 rounded-xl shadow-xl shadow-primary/30 flex items-center gap-2 transition-all">
+                                <span className="material-symbols-outlined">rocket_launch</span>
+                                GAS PREVIEW RUTE AI SEKARANG!
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
             <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                {/* Actions and Alerts */}
-                <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-center bg-white dark:bg-[#1F1F1F] p-4 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
-                        <h3 className="font-bold text-slate-800 dark:text-white">Quick Actions</h3>
-                        <div className="flex items-center gap-3">
-                            <button
-                                className="px-5 py-2.5 bg-white dark:bg-[#1F1F1F] border border-slate-300 dark:border-[#333] text-slate-700 dark:text-white font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-[#1A1A1A] transition-all text-sm flex items-center gap-2 cursor-pointer"
-                            >
-                                <span className="material-symbols-outlined text-lg text-emerald-600 dark:text-emerald-500">download</span>
-                                Download Delivery Order (sales)
-                            </button>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploading}
-                                className="px-5 py-2.5 bg-primary text-white font-bold rounded-lg hover:brightness-110 transition-all text-sm shadow-md shadow-primary/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                            >
-                                <span className="material-symbols-outlined text-lg">upload_file</span>
-                                Upload Delivery Order
-                            </button>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept=".csv,.xlsx,.xls"
-                                onChange={handleFileUpload}
-                            />
-                        </div>
+                
+                {routeMessage && (
+                    <div className={`px-5 py-3 rounded-xl text-sm font-bold border flex items-center gap-3 shadow-sm ${String(routeMessage).includes('PERHATIAN') ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-300'}`}>
+                        <span className="material-symbols-outlined text-xl">{String(routeMessage).includes('PERHATIAN') ? 'warning' : 'check_circle'}</span>
+                        {String(routeMessage)}
                     </div>
+                )}
 
-                    {/* Alerts */}
-                    {uploadStatus === 'success' && (
-                        <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                            <span className="material-symbols-outlined text-emerald-500">check_circle</span>
-                            <p className="text-sm font-semibold">{uploadMessage}</p>
-                        </div>
-                    )}
-                    {uploadStatus === 'error' && (
-                        <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-400 px-4 py-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                            <span className="material-symbols-outlined text-red-500">error</span>
-                            <p className="text-sm font-semibold">{uploadMessage}</p>
-                        </div>
-                    )}
+                <div className="flex justify-between items-center bg-white dark:bg-[#1F1F1F] p-4 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <h3 className="font-bold text-slate-800 dark:text-white">Filter Jadwal:</h3>
+                        <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-[#111] border border-slate-300 dark:border-[#444] rounded-lg text-sm text-slate-700 dark:text-white outline-none focus:border-primary" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button type="button" className="px-5 py-2.5 bg-white dark:bg-[#1F1F1F] border border-slate-300 dark:border-[#333] text-slate-700 dark:text-white font-bold rounded-lg hover:bg-slate-50 transition-all text-sm flex items-center gap-2">
+                            <span className="material-symbols-outlined text-lg text-emerald-600">download</span> Download Delivery Order
+                        </button>
+                        <button type="button" onClick={handleUploadClick} disabled={isUploading} className="px-5 py-2.5 bg-primary text-white font-bold rounded-lg hover:brightness-110 transition-all text-sm flex items-center gap-2 shadow-lg shadow-primary/20">
+                            <span className="material-symbols-outlined text-lg">upload_file</span> Upload SAP Excel
+                        </button>
+                        <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx" onChange={handleFileUpload} />
+                    </div>
                 </div>
 
-                {/* Top KPIs */}
                 <div className="grid grid-cols-4 gap-6">
-                    <div className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-300 uppercase tracking-wider">Cost Estimation</span>
-                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 dark:text-slate-300">payments</span>
-                        </div>
-                        <div className="text-2xl font-bold text-slate-900 dark:text-white">Rp 7.150.000</div>
-                        <div className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">trending_down</span>
-                            -4.2% from avg
-                        </div>
+                    <div onClick={() => setActiveModal('cost')} className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm cursor-pointer hover:border-primary transition-all">
+                        <div className="flex justify-between items-start mb-2"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Cost Estimation</span><span className="material-symbols-outlined text-slate-300">payments</span></div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-white">Rp {totalCost}</div><div className="mt-2 text-[10px] text-primary">Klik untuk rincian ↗</div>
                     </div>
-
-                    <div className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-300 uppercase tracking-wider">Total Distance</span>
-                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 dark:text-slate-300">route</span>
-                        </div>
-                        <div className="text-2xl font-bold text-slate-900 dark:text-white">3,200 KM</div>
-                        <div className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-300">Across 7 Active Trucks</div>
+                    <div onClick={() => setActiveModal('distance')} className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm cursor-pointer hover:border-primary transition-all">
+                        <div className="flex justify-between items-start mb-2"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Distance</span><span className="material-symbols-outlined text-slate-300">route</span></div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-white">{totalDistance} KM</div><div className="mt-2 text-[10px] text-primary">Klik untuk rincian ↗</div>
                     </div>
-
-                    <div className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-300 uppercase tracking-wider">Time Adherence</span>
-                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 dark:text-slate-300">schedule</span>
-                        </div>
-                        <div className="text-2xl font-bold text-slate-900 dark:text-white">94%</div>
-                        <div className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">check_circle</span>
-                            On target (Green)
-                        </div>
+                    <div onClick={() => setActiveModal('fleet')} className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm cursor-pointer hover:border-primary transition-all">
+                        <div className="flex justify-between items-start mb-2"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Fleet</span><span className="material-symbols-outlined text-slate-300">local_shipping</span></div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-white">{totalFleet} Trucks</div><div className="mt-2 text-[10px] text-primary">Klik untuk rincian ↗</div>
                     </div>
-
-                    <div className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-300 uppercase tracking-wider">Total Orders</span>
-                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 dark:text-slate-300">inventory_2</span>
-                        </div>
-                        <div className="text-2xl font-bold text-slate-900 dark:text-white">240</div>
-                        <div className="mt-2 text-xs font-medium text-primary flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">pending_actions</span>
-                            12 Pending processing
-                        </div>
+                    <div onClick={() => setActiveModal('stops')} className="bg-white dark:bg-[#1F1F1F] p-5 rounded-xl border border-slate-200 dark:border-[#333] shadow-sm cursor-pointer hover:border-primary transition-all">
+                        <div className="flex justify-between items-start mb-2"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Stops</span><span className="material-symbols-outlined text-slate-300">inventory_2</span></div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-white">{totalOrders} Destinations</div><div className="mt-2 text-[10px] text-primary">Klik untuk rincian ↗</div>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-12 gap-8 items-start pb-12">
-                    {/* Left Column: Fleet List */}
-                    <div className="col-span-5 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-slate-400 dark:text-slate-300">local_shipping</span>
-                                Today's Fleet
-                            </h3>
-                            <button className="text-xs font-semibold text-primary hover:underline">View All</button>
+                    
+                    {!isFocusMode && (
+                        <div className="col-span-3 space-y-4 transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><span className="material-symbols-outlined text-slate-400">local_shipping</span> Today's Fleet</h3>
+                            </div>
+                            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 pb-10">
+                                {routesData.length > 0 ? (
+                                    routesData.map((route) => {
+                                        const maxCap = 2000; 
+                                        const loadPercent = Math.min(Math.round((route.total_berat / maxCap) * 100), 100);
+                                        const colors = getTruckColors(loadPercent);
+                                        return (
+                                            <Truck3D key={route.route_id} plateNumber={route.kendaraan} driverName={route.driver_name} truckType={route.jenis} zone={route.zone} colorHex={colors.hex} percent={loadPercent} outerText={colors.text} loadKg={`${route.total_berat} / ${maxCap} Kg`} colorClass={colors.class} isSelected={selectedRouteId === route.route_id} onClick={() => { setSelectedRouteId(route.route_id); setExpandedStopIdx(null); }} />
+                                        );
+                                    })
+                                ) : (
+                                    <div className="p-10 flex flex-col items-center justify-center text-center border-2 border-dashed border-slate-300 dark:border-[#333] rounded-2xl text-slate-500">
+                                        <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">manage_search</span>
+                                        <p className="font-bold">Belum ada rute.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
+                    )}
 
-                        <div className="space-y-4">
-                            <Truck3D
-                                plateNumber="B 9513 JXS"
-                                driverName="Budi Santoso"
-                                truckType="Heavy Duty"
-                                zone="KELAPA GADING"
-                                colorHex="#10b981"
-                                percent={92}
-                                outerText="Optimal • 92%"
-                                loadKg="1840 / 2000 Kg"
-                                colorClass="emerald"
-                                isSelected={true}
-                            />
-
-                            <Truck3D
-                                plateNumber="B 9144 BCD"
-                                driverName="Ahmad Reza"
-                                truckType="Medium Duty"
-                                zone="CENGKARENG"
-                                colorHex="#f59e0b"
-                                percent={65}
-                                outerText="Moderate • 65%"
-                                loadKg="975 / 1500 Kg"
-                                colorClass="amber"
-                                isSelected={false}
-                            />
-
-                            <Truck3D
-                                plateNumber="B 9001 TXT"
-                                driverName="Siti Aminah"
-                                truckType="Light Duty"
-                                zone="BEKASI SELATAN"
-                                colorHex="#ef4444"
-                                percent={35}
-                                outerText="Low • 35%"
-                                loadKg="350 / 1000 Kg"
-                                colorClass="red"
-                                isSelected={false}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Right Column: Route Sequence */}
-                    <div className="col-span-7 space-y-4">
+                    <div className={`${isFocusMode ? 'col-span-12' : 'col-span-9'} space-y-4 transition-all duration-300`}>
                         <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-slate-400 dark:text-slate-300">timeline</span>
-                                Route Sequence - B 9513 JXS
-                            </h3>
+                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><span className="material-symbols-outlined text-slate-400">timeline</span> Route Sequence {selectedRoute && `- ${selectedRoute.kendaraan}`}</h3>
                             <div className="flex gap-2">
-                                <button
-                                    onClick={handleOptimizeRoute}
-                                    disabled={isOptimizing}
-                                    className={`px-3 py-1.5 border border-slate-200 dark:border-[#333] rounded-lg text-xs font-bold transition-colors ${isOptimizing ? 'text-slate-400 dark:text-slate-300 bg-slate-50 dark:bg-[#1A1A1A] cursor-not-allowed' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-[#1A1A1A]'}`}
-                                >
-                                    {isOptimizing ? 'Optimizing...' : 'Optimize'}
+                                <button type="button" onClick={() => setIsFocusMode(!isFocusMode)} className={`px-3 py-1.5 border rounded-lg text-sm font-bold transition-colors flex items-center gap-1 ${isFocusMode ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:hover:bg-[#1A1A1A] dark:text-slate-300 dark:border-[#333]'}`}>
+                                    <span className="material-symbols-outlined text-base">{isFocusMode ? 'fullscreen_exit' : 'fullscreen'}</span>
+                                    {isFocusMode ? 'Normal View' : 'Focus Mode'}
                                 </button>
-                                <button
-                                    onClick={() => setShowMapView(!showMapView)}
-                                    className={`px-3 py-1.5 border rounded-lg text-xs font-bold transition-colors ${showMapView ? 'bg-primary text-white border-primary shadow-md shadow-primary/20' : 'border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-[#1A1A1A]'}`}
-                                >
+                                <button type="button" onClick={() => setShowMapView(!showMapView)} className={`px-4 py-2 border rounded-lg text-sm font-bold transition-colors ${showMapView ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:hover:bg-[#1A1A1A] dark:text-slate-300 dark:border-[#333]'}`}>
                                     {showMapView ? 'List View' : 'Map View'}
                                 </button>
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-[#1F1F1F] border border-slate-200 dark:border-[#333] dark:border-[#333] rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[450px] relative">
-
-                            {/* Optimizing Overlay */}
-                            {isOptimizing && (
-                                <div className="absolute inset-0 z-20 bg-white/70 dark:bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center">
-                                    <div className="relative">
-                                        <span className="material-symbols-outlined text-primary text-5xl animate-bounce">route</span>
-                                        <div className="absolute -bottom-2 -right-2 h-4 w-4 bg-emerald-50 dark:bg-emerald-500/100 rounded-full animate-ping"></div>
+                        <div className="bg-white dark:bg-[#1F1F1F] border border-slate-200 dark:border-[#333] rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+                            {selectedRoute ? (
+                                showMapView ? (
+                                    <div className="flex-1 bg-slate-100 dark:bg-[#1A1A1A] flex flex-col relative w-full h-[500px] z-0">
+                                        <MapComponent mapPositions={mapPositions} selectedRoute={selectedRoute} />
                                     </div>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-white mt-4">Recalculating optimal path...</p>
-                                </div>
-                            )}
-
-                            {/* Route Alert Message */}
-                            {routeMessage && (
-                                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm font-bold animate-in fade-in slide-in-from-top-4">
-                                    <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
-                                    {routeMessage}
-                                </div>
-                            )}
-
-                            {showMapView ? (
-                                <div className="flex-1 bg-slate-100 dark:bg-[#1A1A1A] flex flex-col relative w-full h-[500px]">
-                                    <MapContainer
-                                        center={[-6.2000, 106.8166]}
-                                        zoom={11}
-                                        scrollWheelZoom={true}
-                                        zoomControl={true}
-                                        style={{ height: '500px', width: '100%', zIndex: 10, minHeight: '500px' }}
-                                    >
-                                        <TileLayer
-                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                        />
-                                        {ROUTE_STOPS.map((stop, idx) => (
-                                            <Marker key={idx} position={stop.position} icon={customIcon}>
-                                                <Popup>
-                                                    <div className="font-bold text-slate-800 dark:text-white">{stop.name}</div>
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-300">{stop.time}</div>
-                                                    {idx === 0 ? <div className="text-[10px] mt-1 text-primary animate-pulse">START</div> : null}
-                                                </Popup>
-                                            </Marker>
-                                        ))}
-                                        <Polyline
-                                            positions={ROUTE_STOPS.map(s => s.position)}
-                                            pathOptions={{ color: '#D54B00', weight: 4, dashArray: '5, 10' }}
-                                        />
-                                    </MapContainer>
-
-                                    <div className="absolute top-4 right-4 z-[999] text-center bg-white/90 dark:bg-[#1F1F1F]/90 backdrop-blur px-4 py-2 rounded-xl border border-slate-200 dark:border-[#333] shadow-md">
-                                        <div className="flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-xl text-primary">navigation</span>
-                                            <div className="text-left">
-                                                <h4 className="font-bold text-slate-700 dark:text-white text-sm leading-tight">Live Tracker</h4>
-                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-300 font-medium">B 9513 JXS Route</p>
+                                ) : (
+                                    <div className="p-8 flex-1 overflow-y-auto max-h-[600px]">
+                                        <div className="space-y-0 relative">
+                                            <div className="absolute left-[9px] top-2 bottom-6 w-0.5 bg-slate-200 dark:bg-slate-700 border-l-2 border-dashed border-slate-200 dark:border-[#333] -z-10"></div>
+                                            
+                                            <div className="relative pl-10 pb-10">
+                                                <div className="absolute left-[-11px] top-0 w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center ring-4 ring-white dark:ring-[#1F1F1F]"><span className="text-[10px] text-white font-bold">0</span></div>
+                                                <div className="flex justify-between items-start">
+                                                    <div><h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-tight">Main Distribution Center</h4><p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gudang JAPFA Cikupa</p>
+                                                    <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 bg-slate-100 dark:bg-[#1A1A1A] text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded"><span className="material-symbols-outlined text-xs">inventory</span> TOTAL MUATAN: {selectedRoute.total_berat} KG</div></div>
+                                                    <div className="text-right"><span className="text-sm font-bold text-slate-900 dark:text-white">06:00 AM</span><p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Berangkat</p></div>
+                                                </div>
                                             </div>
+
+                                            {selectedRoute.detail_rute.map((stop, idx) => (
+                                                <div key={idx} className="relative pl-10 pb-10">
+                                                    <div 
+                                                        className="absolute left-[-11px] top-0 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-4 ring-white dark:ring-[#1F1F1F] cursor-pointer hover:scale-110 transition-transform"
+                                                        onClick={() => setExpandedStopIdx(expandedStopIdx === idx ? null : idx)}
+                                                    >
+                                                        <span className="text-[10px] text-white font-bold">{idx + 1}</span>
+                                                    </div>
+                                                    
+                                                    <div className="flex justify-between items-start cursor-pointer group" onClick={() => setExpandedStopIdx(expandedStopIdx === idx ? null : idx)}>
+                                                        <div>
+                                                            <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-tight group-hover:text-primary transition-colors flex items-center gap-2">
+                                                                {stop.nama_toko}
+                                                                <span className={`material-symbols-outlined text-lg transition-transform ${expandedStopIdx === idx ? 'rotate-180' : ''}`}>expand_more</span>
+                                                            </h4>
+                                                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-mono text-[11px]">📍 GPS: {stop.latitude}, {stop.longitude}</p>
+                                                            <div className="mt-3 flex gap-3">
+                                                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                                                    <span className="material-symbols-outlined text-xs">package_2</span> {stop.berat_kg} KG Total Turun
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-sm font-bold text-primary">{formatTimeWindow(stop.jam_tiba, stop.berat_kg)}</span>
+                                                            <p className="text-[10px] text-primary font-bold uppercase mt-1">Est. Time Window</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {expandedStopIdx === idx && stop.items && stop.items.length > 0 && (
+                                                        <div className="mt-4 bg-slate-50 dark:bg-[#1A1A1A] rounded-xl border border-slate-200 dark:border-[#333] p-4 animate-in slide-in-from-top-2 fade-in duration-200">
+                                                            <h5 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2 uppercase">
+                                                                <span className="material-symbols-outlined text-sm">receipt_long</span> Rincian Produk Dikirim:
+                                                            </h5>
+                                                            <ul className={`grid gap-2 ${isFocusMode ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                                                {stop.items.map((product, prodIdx) => (
+                                                                    <li key={prodIdx} className="flex justify-between items-center text-sm border-b border-slate-200 dark:border-[#333] pb-2">
+                                                                        <span className="text-slate-600 dark:text-slate-300 font-medium">{String(product.nama_barang)}</span>
+                                                                        <span className="font-bold text-slate-800 dark:text-white bg-slate-100 dark:bg-[#111] px-2 py-1 rounded">{String(product.qty)}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                </div>
+                                )
                             ) : (
-                                <div className="p-8 flex-1">
-                                    <div className="space-y-0 relative">
-                                        {/* Vertical line connecting nodes */}
-                                        <div className="absolute left-[9px] top-2 bottom-6 w-0.5 bg-slate-200 dark:bg-slate-700 border-l-2 border-dashed border-slate-200 dark:border-slate-700 dark:border-[#333] -z-10"></div>
-
-                                        {/* Step 1 */}
-                                        <div className="relative pl-10 pb-10">
-                                            <div className="absolute left-[-11px] top-0 w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center ring-4 ring-white dark:ring-[#1F1F1F]">
-                                                <span className="text-[10px] text-white font-bold">1</span>
-                                            </div>
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-tight">Main Distribution Center</h4>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-300 mt-1">Gatot Subroto St No. 12, Jakarta</p>
-                                                    <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 bg-slate-100 dark:bg-[#1A1A1A] text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded">
-                                                        <span className="material-symbols-outlined text-xs">inventory</span>
-                                                        LOAD: 420 Units
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-sm font-bold text-slate-900 dark:text-white">07:00 AM</span>
-                                                    <p className="text-[10px] text-slate-400 dark:text-slate-300 font-bold uppercase">Departure</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Step 2 */}
-                                        <div className="relative pl-10 pb-10">
-                                            <div className="absolute left-[-11px] top-0 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-4 ring-white dark:ring-[#1F1F1F]">
-                                                <span className="text-[10px] text-white font-bold">2</span>
-                                            </div>
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-bold text-slate-900 dark:text-white">OOTOYA MOI / MALL OF INDONESIA</h4>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-300 mt-1">Kelapa Gading</p>
-                                                    <div className="mt-3 flex gap-3">
-                                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-300">
-                                                            <span className="material-symbols-outlined text-xs">package_2</span> 120 Qty
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-300">
-                                                            <span className="material-symbols-outlined text-xs">straighten</span> 12.4 KM
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-sm font-bold text-primary">08:15 - 09:00</span>
-                                                    <p className="text-[10px] text-primary font-bold uppercase">Time Window</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Step 3 */}
-                                        <div className="relative pl-10 pb-10">
-                                            <div className="absolute left-[-11px] top-0 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center ring-4 ring-white dark:ring-[#1F1F1F]">
-                                                <span className="text-[10px] text-slate-600 dark:text-slate-300 font-bold">3</span>
-                                            </div>
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-bold text-slate-900 dark:text-white">DIAMOND ARTHA GADING</h4>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-300 mt-1">Artha Gading</p>
-                                                    <div className="mt-3 flex gap-3">
-                                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-300">
-                                                            <span className="material-symbols-outlined text-xs">package_2</span> 85 Qty
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-300">
-                                                            <span className="material-symbols-outlined text-xs">straighten</span> 2.1 KM
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-sm font-bold text-slate-900 dark:text-white">09:15 - 10:00</span>
-                                                    <p className="text-[10px] text-slate-400 dark:text-slate-300 font-bold uppercase">Time Window</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Step 4 */}
-                                        <div className="relative pl-10 pb-2">
-                                            <div className="absolute left-[-11px] top-0 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center ring-4 ring-white dark:ring-[#1F1F1F]">
-                                                <span className="text-[10px] text-slate-600 dark:text-slate-300 font-bold">4</span>
-                                            </div>
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-bold text-slate-900 dark:text-white">RS MITRA KELUARGA KELAPA GADING</h4>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-300 mt-1">Kelapa Gading</p>
-                                                    <div className="mt-3 flex gap-3">
-                                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-300">
-                                                            <span className="material-symbols-outlined text-xs">package_2</span> 215 Qty
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-300">
-                                                            <span className="material-symbols-outlined text-xs">straighten</span> 1.5 KM
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-sm font-bold text-slate-900 dark:text-white">10:30 - 11:30</span>
-                                                    <p className="text-[10px] text-slate-400 dark:text-slate-300 font-bold uppercase">Time Window</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                    </div>
-                                </div>
+                                <div className="p-8 flex-1 flex items-center justify-center text-slate-500"><h4>Pilih Truk di sebelah kiri untuk melihat urutan</h4></div>
                             )}
-
+                            
                             <div className="bg-slate-50 dark:bg-[#1A1A1A] p-6 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-[#333]">
-                                <button className="px-6 py-2.5 bg-white dark:bg-[#1F1F1F] border border-slate-300 dark:border-[#333] text-slate-700 dark:text-white font-bold rounded-lg hover:bg-slate-100 dark:bg-[#1A1A1A] transition-all text-sm flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-lg">picture_as_pdf</span>
-                                    Print Out (PDF)
+                                <button type="button" onClick={() => window.print()} className="px-6 py-2.5 bg-white dark:bg-[#1F1F1F] border border-slate-300 dark:border-[#333] text-slate-700 dark:text-white font-bold rounded-lg hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-sm flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-lg">picture_as_pdf</span> Cetak Surat Jalan (PDF)
                                 </button>
-                                <button className="px-8 py-2.5 bg-primary text-white font-bold rounded-lg hover:brightness-110 transition-all text-sm shadow-lg shadow-primary/25 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-lg">done_all</span>
-                                    Accept Route Plan
+                                <button type="button" onClick={() => alert(`Jadwal berhasil dikirim ke HP Supir: ${selectedRoute?.driver_name}!`)} className="px-8 py-2.5 bg-primary text-white font-bold rounded-lg hover:brightness-110 text-sm shadow-lg shadow-primary/25 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-lg">done_all</span> Kirim ke HP Supir
                                 </button>
                             </div>
                         </div>
+
+                        {droppedNodes.length > 0 && (
+                            <div className="mt-6 border-2 border-red-200 dark:border-red-900/50 bg-white dark:bg-[#1F1F1F] rounded-xl overflow-hidden shadow-sm animate-in slide-in-from-bottom-4">
+                                <div className="bg-red-50 dark:bg-red-900/20 px-5 py-4 border-b border-red-200 dark:border-red-900/50 flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-red-600 text-2xl">warning</span>
+                                    <div>
+                                        <h3 className="font-black text-red-700 dark:text-red-400 uppercase tracking-tight">Toko Gagal Routing (Di-drop AI)</h3>
+                                        <p className="text-xs text-red-600/80 dark:text-red-400/80 font-medium mt-0.5">Ada {droppedNodes.length} toko yang ditinggal di gudang karena kapasitas armada penuh.</p>
+                                    </div>
+                                </div>
+                                <div className="p-0 overflow-x-auto max-h-[300px]">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-slate-50 dark:bg-[#111] sticky top-0 border-b border-slate-200 dark:border-[#333]">
+                                            <tr className="text-slate-500 dark:text-slate-400">
+                                                <th className="px-5 py-3 font-bold">Nama Toko</th>
+                                                <th className="px-5 py-3 font-bold">Berat</th>
+                                                <th className="px-5 py-3 font-bold">Alasan Drop</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-[#222]">
+                                            {droppedNodes.map((node, i) => (
+                                                <tr key={i} className="hover:bg-red-50/30 dark:hover:bg-red-900/10">
+                                                    <td className="px-5 py-3 font-bold text-slate-800 dark:text-slate-200">{node.nama_toko}</td>
+                                                    <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-[#1A1A1A] w-32">{node.berat_kg} KG</td>
+                                                    <td className="px-5 py-3 text-red-600 dark:text-red-400 font-medium italic">{node.alasan}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                        
                     </div>
                 </div>
             </div>
